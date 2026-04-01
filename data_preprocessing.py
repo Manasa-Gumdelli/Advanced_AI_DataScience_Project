@@ -97,3 +97,24 @@ def load_and_prepare_data():
 
     return df, X, y
 
+
+def build_preprocessor(X: pd.DataFrame):
+    numeric_features = X.select_dtypes(include=[np.number]).columns.tolist()
+    categorical_features = [col for col in X.columns if col not in numeric_features]
+
+    numeric_transformer = Pipeline([
+        ("imputer", SimpleImputer(strategy="median")),
+        ("scaler", StandardScaler())
+    ])
+
+    categorical_transformer = Pipeline([
+        ("imputer", SimpleImputer(strategy="most_frequent")),
+        ("onehot", OneHotEncoder(handle_unknown="ignore"))
+    ])
+
+    preprocessor = ColumnTransformer([
+        ("num", numeric_transformer, numeric_features),
+        ("cat", categorical_transformer, categorical_features)
+    ])
+
+    return preprocessor
