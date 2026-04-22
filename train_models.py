@@ -27,6 +27,9 @@ from catboost import CatBoostClassifier
 from xgboost import XGBClassifier
 from imblearn.ensemble import BalancedRandomForestClassifier
 
+LIGHTGBM_AVAILABLE = True
+CATBOOST_AVAILABLE = True
+XGBOOST_AVAILABLE = True
 BALANCED_RF_AVAILABLE = True
 
 
@@ -159,6 +162,102 @@ def train_and_evaluate(X, y):
             "y_test": y_test,
             "y_prob": y_prob
         }
+
+    if XGBOOST_AVAILABLE:
+        xgb_pipe = Pipeline([
+            ("preprocessor", preprocessor),
+            ("model", XGBClassifier(
+                n_estimators=250,
+                max_depth=6,
+                learning_rate=0.05,
+                subsample=0.8,
+                colsample_bytree=0.8,
+                objective="binary:logistic",
+                eval_metric="logloss",
+                random_state=RANDOM_STATE,
+                n_jobs=-1
+            ))
+        ])
+
+        xgb_pipe.fit(X_train, y_train)
+        y_prob = xgb_pipe.predict_proba(X_test)[:, 1]
+
+        rows.append(evaluate_predictions("xgboost", y_test, y_prob))
+        trained_models["xgboost"] = {
+            "type": "pipeline",
+            "model": xgb_pipe,
+            "X_test": X_test,
+            "y_test": y_test,
+            "y_prob": y_prob
+        }
+
+    if LIGHTGBM_AVAILABLE:
+        X_train_lgb = X_train.copy()
+        X_test_lgb = X_test.copy()
+
+        cat_cols = X_train_lgb.select_dtypes(include=["object"]).columns.tolist()
+        for col in cat_cols:
+            X_train_lgb[col] = X_train_lgb[col].astype("category")
+            X_test_lgb[col] = X_test_lgb[col].astype("category")
+
+        lgb_model = LGBMClassifier(
+            n_estimators=250,
+            learning_rate=0.05,
+            num_leaves=31,
+            subsample=0.8,
+            colsample_bytree=0.8,
+            class_weight="balanced",
+            random_state=RANDOM_STATE,
+            verbosity=-1
+        )
+
+        lgb_model.fit(X_train_lgb, y_train, categorical_feature=cat_cols)
+        y_prob = lgb_model.predict_proba(X_test_lgb)[:, 1]
+
+        rows.append(evaluate_predictions("lightgbm", y_test, y_prob))
+        trained_models["lightgbm"] = {
+            "type": "native",
+            "model": lgb_model,
+            "X_test": X_test_lgb,
+            "y_test": y_test,
+            "y_prob": y_prob
+        }
+
+    if CATBOOST_AVAILABLE:
+        X_train_cb = X_train.copy().fillna("Missing")
+        X_test_cb = X_test.copy().fillna("Missing")
+
+        cat_cols = X_train_cb.select_dtypes(include=["object"]).columns.tolist()
+        cat_idx = [X_train_cb.columns.get_loc(c) for c in cat_cols]
+
+        cb_model = CatBoostClassifier(
+            iterations=250,
+            depth=6,
+            learning_rate=0.05,
+            loss_function="Logloss",
+            eval_metric="AUC",
+            verbose=False,
+            random_seed=RANDOM_STATE,
+            auto_class_weights="Balanced"
+        )
+
+        cb_model.fit(X_train_cb, y_train, cat_features=cat_idx)
+        y_prob = cb_model.predict_proba(X_test_cb)[:, 1]
+
+        rows.append(evaluate_predictions("catboost", y_test, y_prob))
+        trained_models["catboost"] = {
+            "type": "native",
+            "model": cb_model,
+            "X_test": X_test_cb,
+            "y_test": y_test,
+            "y_prob": y_prob
+        }
+
+    results_df = (
+        pd.DataFrame(rows)
+        .sort_values(["f1_score", "pr_auc", "roc_auc"], ascending=False)
+        .reset_index(drop=True)
+    )
 
     return {
         "X_train": X_train,

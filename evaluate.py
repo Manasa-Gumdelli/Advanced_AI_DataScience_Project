@@ -163,3 +163,88 @@ def plot_probability_distribution(trained_models):
         path = OUTPUT_DIR / f"probability_distribution_{model_name}.png"
         plt.savefig(path, dpi=200)
         plt.close()
+
+
+def plot_confusion_matrices(results_df: pd.DataFrame):
+    for _, row in results_df.iterrows():
+        model_name = row["model"]
+        tn = row["true_negative"]
+        fp = row["false_positive"]
+        fn = row["false_negative"]
+        tp = row["true_positive"]
+
+        cm = np.array([[tn, fp], [fn, tp]])
+
+        plt.figure(figsize=(5, 4))
+        plt.imshow(cm, interpolation="nearest")
+        plt.title(f"Confusion Matrix - {model_name}")
+        plt.colorbar()
+        plt.xticks([0, 1], ["Pred 0", "Pred 1"])
+        plt.yticks([0, 1], ["Actual 0", "Actual 1"])
+
+        for i in range(2):
+            for j in range(2):
+                plt.text(j, i, cm[i, j], ha="center", va="center")
+
+        plt.xlabel("Predicted Label")
+        plt.ylabel("True Label")
+        plt.tight_layout()
+
+        path = OUTPUT_DIR / f"confusion_matrix_{model_name}.png"
+        plt.savefig(path, dpi=200)
+        plt.close()
+
+
+def plot_feature_importance(best_model_name, trained_models):
+    artifact = trained_models[best_model_name]
+    model = artifact["model"]
+
+    if artifact["type"] == "pipeline":
+        preprocessor = model.named_steps["preprocessor"]
+        estimator = model.named_steps["model"]
+        feature_names = preprocessor.get_feature_names_out()
+
+        if hasattr(estimator, "feature_importances_"):
+            importance = estimator.feature_importances_
+        else:
+            importance = abs(estimator.coef_[0])
+
+    else:
+        X_test = artifact["X_test"]
+        feature_names = X_test.columns
+
+        if hasattr(model, "feature_importances_"):
+            importance = model.feature_importances_
+        else:
+            return None
+
+    importance_df = (
+        pd.DataFrame({
+            "feature": feature_names,
+            "importance": importance
+        })
+        .sort_values("importance", ascending=False)
+        .head(20)
+    )
+
+    plt.figure(figsize=(10, 7))
+    plt.barh(importance_df["feature"][::-1], importance_df["importance"][::-1])
+    plt.title(f"Top 20 Important Features - {best_model_name}")
+    plt.xlabel("Importance")
+    plt.tight_layout()
+
+    png_path = OUTPUT_DIR / "feature_importance.png"
+    csv_path = OUTPUT_DIR / "feature_importance.csv"
+
+    plt.savefig(png_path, dpi=200)
+    plt.close()
+    importance_df.to_csv(csv_path, index=False)
+
+    return png_path
+
+
+def save_best_model(best_model_name, trained_models):
+    artifact = trained_models[best_model_name]
+    path = OUTPUT_DIR / f"{best_model_name}_model.joblib"
+    joblib.dump(artifact["model"], path)
+    return path
