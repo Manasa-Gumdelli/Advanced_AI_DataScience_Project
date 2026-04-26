@@ -1,0 +1,38 @@
+======================================================
+  DIABETIC READMISSION PREDICTION — HOW TO RUN
+======================================================
+
+REQUIREMENTS
+------------
+Python 3.10+
+Install dependencies:
+
+    pip install -r requirements.txt
+
+
+------------------------------------------------------
+1. TRAIN THE MODEL (run_project.py)
+------------------------------------------------------
+Trains all models, evaluates them, saves plots and the
+best model (XGBoost) to the outputs/ directory.
+
+    python run_project.py
+
+Output:
+  outputs/xgboost_model.joblib   — saved model
+  outputs/model_metrics.csv      — metrics for all models
+  outputs/feature_importance.csv — top feature importances
+  outputs/*.png                  — evaluation plots
+
+
+------------------------------------------------------
+2. RUN THE STREAMLIT UI (app.py)
+------------------------------------------------------
+Interactive single-patient prediction in the browser.
+Fill in patient details and click Predict to get a
+readmission risk score and HIGH/LOW verdict.
+
+    streamlit run app.py
+
+Opens at: http://localhost:8501
+
